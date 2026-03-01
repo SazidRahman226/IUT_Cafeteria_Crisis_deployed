@@ -318,9 +318,9 @@ app.listen(PORT, "0.0.0.0", () => {
           );
 
           INSERT INTO users (student_id, name, password_hash, role) VALUES
-              ('student1', 'Farhan Ahmed', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'password123'),
-              ('student2', 'Nadia Rahman', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'password123'),
-              ('admin1', 'System Admin', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'password123')
+              ('student1', 'Farhan Ahmed', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'student'),
+              ('student2', 'Nadia Rahman', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'student'),
+              ('admin1', 'System Admin', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'admin')
           ON CONFLICT (student_id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
         `);
         log("info", "Database schema initialized and seeded");
