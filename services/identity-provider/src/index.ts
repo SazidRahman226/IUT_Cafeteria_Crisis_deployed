@@ -304,6 +304,30 @@ app.listen(PORT, "0.0.0.0", () => {
     try {
       await pool.query("SELECT 1");
       log("info", "Database connected");
+      
+      // Auto-initialize DB schema and seed data
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS users (
+              id SERIAL PRIMARY KEY,
+              student_id VARCHAR(50) UNIQUE NOT NULL,
+              name VARCHAR(100) NOT NULL,
+              password_hash VARCHAR(255) NOT NULL,
+              role VARCHAR(20) DEFAULT 'student',
+              created_at TIMESTAMP DEFAULT NOW()
+          );
+
+          INSERT INTO users (student_id, name, password_hash, role) VALUES
+              ('student1', 'Farhan Ahmed', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'student1'),
+              ('student2', 'Nadia Rahman', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'student2'),
+              ('admin1', 'System Admin', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'admin1')
+          ON CONFLICT (student_id) DO NOTHING;
+        `);
+        log("info", "Database schema initialized and seeded");
+      } catch (dbErr: any) {
+        log("error", "Database initialization failed", { error: dbErr.message });
+      }
+
       break;
     } catch {
       log("warn", `Waiting for database... (${i - 1} retries left)`);
