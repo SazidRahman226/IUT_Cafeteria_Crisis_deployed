@@ -85,20 +85,9 @@ const PORT = window.location.port;
 const BASE_HOST = window.location.hostname || "localhost";
 const NO_PORT = PORT === "80" || PORT === "";
 
-const API_BASE = IS_LOCAL && PORT === "3000" ? "" : "";
-const GATEWAY_URL =
-    API_BASE ||
-    (NO_PORT
-        ? `${window.location.protocol}//${window.location.hostname}:8080`
-        : "http://localhost:8080");
-const AUTH_URL =
-    API_BASE ||
-    (NO_PORT
-        ? `${window.location.protocol}//${window.location.hostname}:4001`
-        : "http://localhost:4001");
-const WS_URL = NO_PORT
-    ? `ws://${window.location.hostname}:4005/ws`
-    : "ws://localhost:4005/ws";
+const GATEWAY_URL = import.meta.env.VITE_ORDER_API_URL || "http://localhost:8080";
+const AUTH_URL = import.meta.env.VITE_IDENTITY_API_URL || "http://localhost:4001";
+const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:4005/ws";
 
 const SERVICES = [
     {
