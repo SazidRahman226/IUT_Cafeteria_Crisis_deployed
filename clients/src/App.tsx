@@ -94,20 +94,23 @@ const SERVICES = [
         name: "Identity Provider",
         key: "identity-provider",
         port: 4001,
+        url: import.meta.env.VITE_IDENTITY_API_URL,
         color: "#38bdf8",
     },
-    { name: "Order Gateway", key: "order-gateway", port: 8080, color: "#a78bfa" },
-    { name: "Stock Service", key: "stock-service", port: 4002, color: "#34d399" },
+    { name: "Order Gateway", key: "order-gateway", port: 8080, url: import.meta.env.VITE_ORDER_API_URL, color: "#a78bfa" },
+    { name: "Stock Service", key: "stock-service", port: 4002, url: import.meta.env.VITE_STOCK_API_URL, color: "#34d399" },
     {
         name: "Kitchen Service",
         key: "kitchen-service",
         port: 4003,
+        url: import.meta.env.VITE_KITCHEN_API_URL,
         color: "#fb923c",
     },
     {
         name: "Notification Hub",
         key: "notification-hub",
         port: 4005,
+        url: import.meta.env.VITE_NOTIFICATION_API_URL,
         color: "#f472b6",
     },
 ];
@@ -123,6 +126,8 @@ const fadeRight = {
 };
 
 function getServiceUrl(port: number) {
+    const svc = SERVICES.find((s) => s.port === port);
+    if (svc && svc.url) return svc.url;
     return `http://${BASE_HOST}:${port}`;
 }
 
