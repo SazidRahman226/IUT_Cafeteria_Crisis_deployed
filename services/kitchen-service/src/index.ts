@@ -133,9 +133,9 @@ const notifyAndUpdate = async (
   message: string,
 ) => {
   try {
-    await Promise.allSettled([
+    const results = await Promise.allSettled([
       axios.post(
-        `${NOTIFICATION_HUB_URL}/notify`,
+        `${NOTIFICATION_HUB_URL.replace(/\/$/, "")}/notify`,
         {
           orderId,
           studentId,
@@ -143,16 +143,27 @@ const notifyAndUpdate = async (
           timestamp: new Date().toISOString(),
           message,
         },
-        { timeout: 3000 },
+        { timeout: 5000 },
       ),
       axios.patch(
-        `${GATEWAY_URL}/api/orders/${orderId}/status`,
+        `${GATEWAY_URL.replace(/\/$/, "")}/api/orders/${orderId}/status`,
         { status },
-        { timeout: 3000, headers: { "X-Internal-Key": INTERNAL_SECRET } },
+        { timeout: 5000, headers: { "X-Internal-Key": INTERNAL_SECRET } },
       ),
     ]);
+    
+    results.forEach((res, index) => {
+        if (res.status === 'rejected') {
+            log("warn", `Failed to sync status ${status} (Hook ${index})`, {
+                orderId,
+                error: res.reason?.message,
+                responseData: res.reason?.response?.data
+            });
+        }
+    });
+
   } catch (err: any) {
-    log("warn", `Failed to sync status ${status}`, {
+    log("warn", `Unexpected error during sync status ${status}`, {
       orderId,
       error: err.message,
     });
