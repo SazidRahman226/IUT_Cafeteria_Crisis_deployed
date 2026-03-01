@@ -239,14 +239,14 @@ async function connectRabbitMQ() {
   log("error", "Failed to connect to RabbitMQ");
 }
 
+app.listen(PORT, "0.0.0.0", () => {
+  log("info", `Kitchen Service running on port ${PORT}`);
+});
+
 (async () => {
   await connectRabbitMQ();
-  app.listen(PORT, "0.0.0.0", () =>
-    log("info", `Kitchen Service running on port ${PORT}`),
-  );
 })().catch((err) => {
-  log("error", "Failed to start", { error: err.message });
-  process.exit(1);
+  log("error", "Failed to start RabbitMQ handler", { error: err.message });
 });
 
 export { app };

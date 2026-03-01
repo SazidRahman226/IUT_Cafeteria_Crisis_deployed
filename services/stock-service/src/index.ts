@@ -7,16 +7,27 @@ import { v4 as uuidv4 } from "uuid";
 const PORT = parseInt(process.env.PORT || "4002");
 const JWT_SECRET = process.env.JWT_SECRET || "devsprint-2026-secret-key";
 
-const pool = new Pool({
-  host: process.env.DB_HOST || "localhost",
-  port: parseInt(process.env.DB_PORT || "5432"),
-  database: process.env.DB_NAME || "cafeteria_inventory",
-  user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "postgres",
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      }
+    : {
+        host: process.env.DB_HOST || "dpg-d6i0858gjchc73d0i2h0-a.oregon-postgres.render.com",
+        port: parseInt(process.env.DB_PORT || "5432"),
+        database: process.env.DB_NAME || "cafeteria_db_yi2n",
+        user: process.env.DB_USER || "cafeteria_db_yi2n_user",
+        password: process.env.DB_PASSWORD || "gkMA9JHxPY9AVG9S47NAPgGvjzs9kAZV",
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+        ssl: { rejectUnauthorized: false }
+      }
+);
 
 let requestCount = 0,
   errorCount = 0,
@@ -321,6 +332,10 @@ app.post("/chaos/kill", (req, res) => {
   }
 });
 
+app.listen(PORT, "0.0.0.0", () => {
+  log("info", `Stock Service running on port ${PORT}`);
+});
+
 (async () => {
   for (let i = 30; i > 0; i--) {
     try {
@@ -336,12 +351,8 @@ app.post("/chaos/kill", (req, res) => {
       process.exit(1);
     }
   }
-  app.listen(PORT, "0.0.0.0", () =>
-    log("info", `Stock Service running on port ${PORT}`),
-  );
 })().catch((err) => {
-  log("error", "Failed to start", { error: err.message });
-  process.exit(1);
+  log("error", "Failed to start DB wait loop", { error: err.message });
 });
 
 export { app, pool };

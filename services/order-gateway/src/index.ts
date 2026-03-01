@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 
 const PORT = parseInt(process.env.PORT || "8080");
 const JWT_SECRET = process.env.JWT_SECRET || "devsprint-2026-secret-key";
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const REDIS_URL = process.env.REDIS_URL || "rediss://red-d6i08msr85hc739okijg:6FHUWS4CflOd3NoKPpwKannDxeinoN9L@oregon-keyvalue.render.com:6379";
 const RABBITMQ_URL =
   process.env.RABBITMQ_URL || "amqp://guest:guest@localhost:5672";
 const STOCK_SERVICE_URL =
@@ -19,16 +19,27 @@ const NOTIFICATION_HUB_URL =
 const QUEUE_NAME = "kitchen_orders";
 const STOCK_CACHE_TTL = 30;
 
-const pool = new Pool({
-  host: process.env.DB_HOST || "localhost",
-  port: parseInt(process.env.DB_PORT || "5432"),
-  database: process.env.DB_NAME || "cafeteria_orders",
-  user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "postgres",
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      }
+    : {
+        host: process.env.DB_HOST || "dpg-d6i0858gjchc73d0i2h0-a.oregon-postgres.render.com",
+        port: parseInt(process.env.DB_PORT || "5432"),
+        database: process.env.DB_NAME || "cafeteria_db_yi2n",
+        user: process.env.DB_USER || "cafeteria_db_yi2n_user",
+        password: process.env.DB_PASSWORD || "gkMA9JHxPY9AVG9S47NAPgGvjzs9kAZV",
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+        ssl: { rejectUnauthorized: false }
+      }
+);
 
 let redis: Redis;
 let rabbitChannel: amqplib.Channel | null = null;
@@ -625,6 +636,7 @@ async function connectRedis() {
     maxRetriesPerRequest: 3,
     retryStrategy: (t) => Math.min(t * 500, 5000),
     lazyConnect: true,
+    tls: REDIS_URL.startsWith("rediss://") ? { rejectUnauthorized: false } : undefined
   });
   for (let i = 30; i > 0; i--) {
     try {
@@ -676,15 +688,15 @@ async function connectDB() {
   process.exit(1);
 }
 
+app.listen(PORT, "0.0.0.0", () => {
+  log("info", `Order Gateway running on port ${PORT}`);
+});
+
 (async () => {
   await Promise.all([connectDB(), connectRedis(), connectRabbitMQ()]);
   setInterval(retryPendingOrders, 10000);
-  app.listen(PORT, "0.0.0.0", () =>
-    log("info", `Order Gateway running on port ${PORT}`),
-  );
 })().catch((err) => {
-  log("error", "Failed to start", { error: err.message });
-  process.exit(1);
+  log("error", "Failed to start dependencies", { error: err.message });
 });
 
 export { app };
