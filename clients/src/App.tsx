@@ -794,7 +794,7 @@ function AdminDashboard({ user, token, onLogout }: { user: User; token: string; 
                     }`}>
                     {isKilled && <span className="absolute inset-0 bg-red-500/10 animate-pulse" />}
                     <span className="relative z-10 flex items-center justify-center gap-1.5">
-                      {isKilled ? "💀" : "☠️"} {isKilled ? "Killed" : `Kill ${svc.name.split(" ").pop()}`}
+                      {isKilled ? "💀" : "☠️"} {isKilled ? "Killed" : `Kill ${svc.name}`}
                     </span>
                   </motion.button>
                 );
