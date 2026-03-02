@@ -16,7 +16,7 @@ type StudentScreen = "menu" | "orders";
 interface HealthData { status: string; service: string; uptime: number; dependencies: Record<string, { status: string; latency?: number }> }
 interface MetricsData { service: string; requestCount: number; errorCount: number; avgLatencyMs: number; recentAvgLatencyMs?: number; ordersProcessed: number; uptime: number; connectedClients?: number; notificationsSent?: number; kitchenProcessingTimeMs?: number; totalRevenue?: number }
 interface ServiceState { name: string; key: string; port: number; color: string; health: HealthData | null; metrics: MetricsData | null; isUp: boolean; lastCheck: Date }
-interface LatencyPoint { time: string; gateway: number; identity: number; stock: number }
+interface LatencyPoint { time: string; gateway: number; identity: number; stock: number; kitchen: number; notification: number }
 
 // ==========================================
 // Config
@@ -594,8 +594,8 @@ function AdminDashboard({ user, token, onLogout }: { user: User; token: string; 
     }));
     setServices(updated);
     const now = new Date().toLocaleTimeString();
-    const gw = updated.find((s) => s.key === "order-gateway"), id = updated.find((s) => s.key === "identity-provider"), st = updated.find((s) => s.key === "stock-service");
-    setLatencyHistory((p) => [...p, { time: now, gateway: gw?.metrics?.avgLatencyMs || 0, identity: id?.metrics?.avgLatencyMs || 0, stock: st?.metrics?.avgLatencyMs || 0 }].slice(-30));
+    const gw = updated.find((s) => s.key === "order-gateway"), id = updated.find((s) => s.key === "identity-provider"), st = updated.find((s) => s.key === "stock-service"), ki = updated.find((s) => s.key === "kitchen-service"), no = updated.find((s) => s.key === "notification-hub");
+    setLatencyHistory((p) => [...p, { time: now, gateway: gw?.metrics?.avgLatencyMs || 0, identity: id?.metrics?.avgLatencyMs || 0, stock: st?.metrics?.avgLatencyMs || 0, kitchen: ki?.metrics?.avgLatencyMs || 0, notification: no?.metrics?.avgLatencyMs || 0 }].slice(-30));
     setOrdersHistory((p) => [...p, { time: now, orders: updated.reduce((s, x) => s + (x.metrics?.ordersProcessed || 0), 0) }].slice(-30));
     setGatewayAlert((gw?.metrics?.recentAvgLatencyMs || gw?.metrics?.avgLatencyMs || 0) > 1000);
   }, []);
@@ -755,6 +755,8 @@ function AdminDashboard({ user, token, onLogout }: { user: User; token: string; 
                 <Line type="monotone" dataKey="gateway" stroke="#a78bfa" strokeWidth={2} dot={false} name="Gateway" />
                 <Line type="monotone" dataKey="identity" stroke="#38bdf8" strokeWidth={2} dot={false} name="Identity" />
                 <Line type="monotone" dataKey="stock" stroke="#34d399" strokeWidth={2} dot={false} name="Stock" />
+                <Line type="monotone" dataKey="kitchen" stroke="#fb923c" strokeWidth={2} dot={false} name="Kitchen" />
+                <Line type="monotone" dataKey="notification" stroke="#f472b6" strokeWidth={2} dot={false} name="Notification" />
               </LineChart>
             </ResponsiveContainer>
           </motion.div>
