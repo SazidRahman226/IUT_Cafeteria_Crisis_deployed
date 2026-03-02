@@ -21,24 +21,28 @@ interface LatencyPoint { time: string; gateway: number; identity: number; stock:
 // ==========================================
 // Config
 // ==========================================
-const BASE_HOST = window.location.hostname || "localhost";
-const PORT = window.location.port;
-const NO_PORT = PORT === "80" || PORT === "";
 const IS_LOCAL = window.location.hostname === "localhost";
-const API_BASE = IS_LOCAL && PORT === "3000" ? "" : "";
-const GATEWAY_URL = API_BASE || (NO_PORT ? `${window.location.protocol}//${window.location.hostname}:8080` : "http://localhost:8080");
-const AUTH_URL = API_BASE || (NO_PORT ? `${window.location.protocol}//${window.location.hostname}:4001` : "http://localhost:4001");
-const WS_URL = NO_PORT ? `ws://${window.location.hostname}:4005/ws` : "ws://localhost:4005/ws";
+const PORT = window.location.port;
+const BASE_HOST = window.location.hostname || "localhost";
+const NO_PORT = PORT === "80" || PORT === "";
+
+const GATEWAY_URL = import.meta.env.VITE_ORDER_API_URL || "http://localhost:8080";
+const AUTH_URL = import.meta.env.VITE_IDENTITY_API_URL || "http://localhost:4001";
+const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:4005/ws";
 
 const SERVICES = [
-  { name: "Identity Provider", key: "identity-provider", port: 4001, color: "#38bdf8" },
-  { name: "Order Gateway", key: "order-gateway", port: 8080, color: "#a78bfa" },
-  { name: "Stock Service", key: "stock-service", port: 4002, color: "#34d399" },
-  { name: "Kitchen Service", key: "kitchen-service", port: 4003, color: "#fb923c" },
-  { name: "Notification Hub", key: "notification-hub", port: 4005, color: "#f472b6" },
+  { name: "Identity Provider", key: "identity-provider", port: 4001, url: import.meta.env.VITE_IDENTITY_API_URL, color: "#38bdf8" },
+  { name: "Order Gateway", key: "order-gateway", port: 8080, url: import.meta.env.VITE_ORDER_API_URL, color: "#a78bfa" },
+  { name: "Stock Service", key: "stock-service", port: 4002, url: import.meta.env.VITE_STOCK_API_URL, color: "#34d399" },
+  { name: "Kitchen Service", key: "kitchen-service", port: 4003, url: import.meta.env.VITE_KITCHEN_API_URL, color: "#fb923c" },
+  { name: "Notification Hub", key: "notification-hub", port: 4005, url: import.meta.env.VITE_NOTIFICATION_API_URL, color: "#f472b6" },
 ];
 
-function getServiceUrl(port: number) { return `http://${BASE_HOST}:${port}`; }
+function getServiceUrl(port: number) {
+  const svc = SERVICES.find((s) => s.port === port);
+  if (svc && svc.url) return svc.url;
+  return `http://${BASE_HOST}:${port}`;
+}
 function formatUptime(s: number): string { if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s / 60)}m`; return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`; }
 function parsePrometheusMetrics(text: string, service: string): MetricsData {
   const gv = (n: string) => { const m = text.match(new RegExp(`${n}\\{[^}]*\\}\\s+(\\d+\\.?\\d*)`)); return m ? parseFloat(m[1]) : 0; };
