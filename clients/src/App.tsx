@@ -21,7 +21,8 @@ interface LatencyPoint { time: string; gateway: number; identity: number; stock:
 // ==========================================
 // Config
 // ==========================================
-const BASE_HOST = import.meta.env.VITE_API_HOST || "localhost";
+const BASE_HOST = window.location.hostname || "localhost";
+
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || `http://${BASE_HOST}:8080`;
 const AUTH_URL = import.meta.env.VITE_AUTH_URL || `http://${BASE_HOST}:4001`;
 const WS_URL = import.meta.env.VITE_WS_URL || `ws://${BASE_HOST}:4005/ws`;
