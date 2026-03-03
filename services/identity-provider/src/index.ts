@@ -11,27 +11,16 @@ const JWT_SECRET = process.env.JWT_SECRET || "devsprint-2026-secret-key";
 const JWT_EXPIRY = (process.env.JWT_EXPIRY ||
   "24h") as SignOptions["expiresIn"];
 
-const pool = new Pool(
-  process.env.DATABASE_URL
-    ? {
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false },
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-      }
-    : {
-        host: process.env.DB_HOST || "dpg-d6i0858gjchc73d0i2h0-a.oregon-postgres.render.com",
-        port: parseInt(process.env.DB_PORT || "5432"),
-        database: process.env.DB_NAME || "cafeteria_db_yi2n",
-        user: process.env.DB_USER || "cafeteria_db_yi2n_user",
-        password: process.env.DB_PASSWORD || "gkMA9JHxPY9AVG9S47NAPgGvjzs9kAZV",
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-        ssl: { rejectUnauthorized: false }
-      }
-);
+const pool = new Pool({
+  host: process.env.DB_HOST || "localhost",
+  port: parseInt(process.env.DB_PORT || "5432"),
+  database: process.env.DB_NAME || "cafeteria_auth",
+  user: process.env.DB_USER || "postgres",
+  password: process.env.DB_PASSWORD || "postgres",
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
 
 let requestCount = 0,
   errorCount = 0,
@@ -101,15 +90,13 @@ app.post("/auth/login", loginLimiter, async (req, res) => {
   const traceId = (req as any).requestId;
 
   if (!studentId || !password) {
-    return res
-      .status(400)
-      .json({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "studentId and password required",
-          traceId,
-        },
-      });
+    return res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "studentId and password required",
+        traceId,
+      },
+    });
   }
 
   try {
@@ -122,15 +109,13 @@ app.post("/auth/login", loginLimiter, async (req, res) => {
       !rows.length ||
       !(await bcrypt.compare(password, rows[0].password_hash))
     ) {
-      return res
-        .status(401)
-        .json({
-          error: {
-            code: "INVALID_CREDENTIALS",
-            message: "Invalid credentials",
-            traceId,
-          },
-        });
+      return res.status(401).json({
+        error: {
+          code: "INVALID_CREDENTIALS",
+          message: "Invalid credentials",
+          traceId,
+        },
+      });
     }
 
     const user = rows[0];
@@ -153,11 +138,9 @@ app.post("/auth/login", loginLimiter, async (req, res) => {
     });
   } catch (err: any) {
     log("error", "Login error", { error: err.message, traceId });
-    res
-      .status(500)
-      .json({
-        error: { code: "INTERNAL_ERROR", message: "Auth error", traceId },
-      });
+    res.status(500).json({
+      error: { code: "INTERNAL_ERROR", message: "Auth error", traceId },
+    });
   }
 });
 
@@ -166,11 +149,9 @@ app.post("/auth/register", async (req, res) => {
   const traceId = (req as any).requestId;
 
   if (!studentId || !name || !password) {
-    return res
-      .status(400)
-      .json({
-        error: { code: "VALIDATION_ERROR", message: "Missing fields", traceId },
-      });
+    return res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: "Missing fields", traceId },
+    });
   }
 
   try {
@@ -182,21 +163,17 @@ app.post("/auth/register", async (req, res) => {
     res.status(201).json({ message: "User registered", studentId });
   } catch (err: any) {
     if (err.code === "23505")
-      return res
-        .status(409)
-        .json({
-          error: { code: "USER_EXISTS", message: "Student ID exists", traceId },
-        });
-    log("error", "Register error", { error: err.message, traceId });
-    res
-      .status(500)
-      .json({
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "Registration failed",
-          traceId,
-        },
+      return res.status(409).json({
+        error: { code: "USER_EXISTS", message: "Student ID exists", traceId },
       });
+    log("error", "Register error", { error: err.message, traceId });
+    res.status(500).json({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Registration failed",
+        traceId,
+      },
+    });
   }
 });
 
@@ -205,11 +182,9 @@ app.get("/auth/verify", (req, res) => {
   const traceId = (req as any).requestId;
 
   if (!auth?.startsWith("Bearer ")) {
-    return res
-      .status(401)
-      .json({
-        error: { code: "UNAUTHORIZED", message: "Missing token", traceId },
-      });
+    return res.status(401).json({
+      error: { code: "UNAUTHORIZED", message: "Missing token", traceId },
+    });
   }
 
   try {
@@ -218,11 +193,9 @@ app.get("/auth/verify", (req, res) => {
       claims: jwt.verify(auth.split(" ")[1], JWT_SECRET),
     });
   } catch {
-    res
-      .status(401)
-      .json({
-        error: { code: "UNAUTHORIZED", message: "Invalid token", traceId },
-      });
+    res.status(401).json({
+      error: { code: "UNAUTHORIZED", message: "Invalid token", traceId },
+    });
   }
 });
 
@@ -238,15 +211,13 @@ app.get("/health", async (_, res) => {
       dependencies: { postgres: { status: "ok", latency: Date.now() - start } },
     });
   } catch {
-    res
-      .status(503)
-      .json({
-        status: "down",
-        service: "identity-provider",
-        timestamp: new Date().toISOString(),
-        uptime: uptime(),
-        dependencies: { postgres: { status: "down" } },
-      });
+    res.status(503).json({
+      status: "down",
+      service: "identity-provider",
+      timestamp: new Date().toISOString(),
+      uptime: uptime(),
+      dependencies: { postgres: { status: "down" } },
+    });
   }
 });
 
@@ -295,40 +266,11 @@ app.post("/chaos/kill", (req, res) => {
   }
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  log("info", `Identity Provider running on port ${PORT}`);
-});
-
 (async () => {
   for (let i = 30; i > 0; i--) {
     try {
       await pool.query("SELECT 1");
       log("info", "Database connected");
-      
-      // Auto-initialize DB schema and seed data
-      try {
-        await pool.query(`
-          CREATE TABLE IF NOT EXISTS users (
-              id SERIAL PRIMARY KEY,
-              student_id VARCHAR(50) UNIQUE NOT NULL,
-              name VARCHAR(100) NOT NULL,
-              password_hash VARCHAR(255) NOT NULL,
-              role VARCHAR(20) DEFAULT 'student',
-              created_at TIMESTAMP DEFAULT NOW()
-          );
-
-          TRUNCATE TABLE users;
-
-          INSERT INTO users (student_id, name, password_hash, role) VALUES
-              ('student1', 'Farhan Ahmed', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'student'),
-              ('student2', 'Nadia Rahman', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'student'),
-              ('admin1', 'System Admin', '$2a$10$aoUqgAb3oZe5sJybauEFROQAAM2I2pKEku2kmozoqWFTluuC.5aVa', 'admin');
-        `);
-        log("info", "Database schema initialized and seeded");
-      } catch (dbErr: any) {
-        log("error", "Database initialization failed", { error: dbErr.message });
-      }
-
       break;
     } catch {
       log("warn", `Waiting for database... (${i - 1} retries left)`);
@@ -339,8 +281,12 @@ app.listen(PORT, "0.0.0.0", () => {
       process.exit(1);
     }
   }
+  app.listen(PORT, "0.0.0.0", () =>
+    log("info", `Identity Provider running on port ${PORT}`),
+  );
 })().catch((err) => {
-  log("error", "Failed to start DB wait loop", { error: err.message });
+  log("error", "Failed to start", { error: err.message });
+  process.exit(1);
 });
 
 export { app };

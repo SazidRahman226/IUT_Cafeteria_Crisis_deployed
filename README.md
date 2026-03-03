@@ -1,6 +1,18 @@
+<!-- markdownlint-disable MD033 -->
 # 🍽️ IUT Cafeteria Crisis — DevSprint 2026
 
 > **Production-grade microservices system** for campus cafeteria management with real-time order tracking, chaos engineering, and full observability.
+
+---
+## 📃 Problem Statement
+
+ 🔗 [View the PDF Document](./public/DevSprint_2026_Problem_Statement.pdf)
+
+---
+
+## 🌐 Live Demo
+
+The project is deployed and accessible at: **[https://iut-cafeteria-crisis-deployed.vercel.app/](https://iut-cafeteria-crisis-deployed.vercel.app/)**
 
 ---
 
@@ -9,7 +21,7 @@
 ```bash
 docker compose up --build
 ```
-
+<!-- markdownlint-disable MD060 -->
 | Service | URL |
 |---|---|
 | **Cafeteria Portal** (Student + Admin) | [http://localhost:3000](http://localhost:3000) |
@@ -32,19 +44,20 @@ docker compose up --build
 ---
 
 ## 🏗️ Architecture
+<!-- markdownlint-disable MD033 -->
 
-<img alt="Architecture Light" src="./public/Architecture-white.png#gh-light-mode-only" width="700">
-<img alt="Architecture Dark" src="./public/Architecture-dark.png#gh-dark-mode-only" width="700">
+<img alt="Architecture Light" src="./public/Architecture-white.png#gh-light-mode-only" width="700"> <br>
+<img alt="Architecture Dark" src="./public/Architecture-dark.png#gh-dark-mode-only" width="700"> <br>
 
 ---
 
 ## 🏗️ Project Screenshot
 
-<img alt="Project Screenshot" src="./public/login.png" width="700">
-<img alt="Project Screenshot" src="./public/admin-dashboard1.png" width="700">
-<img alt="Project Screenshot" src="./public/admin-dashboard2.png" width="700">
-<img alt="Project Screenshot" src="./public/student-dashboard1.png" width="700">
-<img alt="Project Screenshot" src="./public/student-dashboard2.png" width="700">
+<img alt="Project Screenshot" src="./public/login.png" width="700"><br>
+<img alt="Project Screenshot" src="./public/admin-dashboard1.png" width="700"><br>
+<img alt="Project Screenshot" src="./public/admin-dashboard2.png" width="700"><br>
+<img alt="Project Screenshot" src="./public/student-dashboard1.png" width="700"><br>
+<img alt="Project Screenshot" src="./public/student-dashboard2.png" width="700"><br>
 
 ---
 
@@ -133,7 +146,7 @@ curl -X POST http://localhost:8080/api/orders \
 ---
 
 ## 📁 Repository Structure
-
+<!-- markdownlint-disable MD040 -->
 ```
 iut-cafeteria-crisis/
 ├── .github/workflows/        # CI/CD pipeline

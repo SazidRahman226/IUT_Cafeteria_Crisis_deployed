@@ -21,27 +21,25 @@ interface LatencyPoint { time: string; gateway: number; identity: number; stock:
 // ==========================================
 // Config
 // ==========================================
-const IS_LOCAL = window.location.hostname === "localhost";
-const PORT = window.location.port;
-const BASE_HOST = window.location.hostname || "localhost";
-const NO_PORT = PORT === "80" || PORT === "";
-
-const GATEWAY_URL = import.meta.env.VITE_ORDER_API_URL || "http://localhost:8080";
-const AUTH_URL = import.meta.env.VITE_IDENTITY_API_URL || "http://localhost:4001";
-const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:4005/ws";
+const BASE_HOST = import.meta.env.VITE_API_HOST || "localhost";
+const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || `http://${BASE_HOST}:8080`;
+const AUTH_URL = import.meta.env.VITE_AUTH_URL || `http://${BASE_HOST}:4001`;
+const WS_URL = import.meta.env.VITE_WS_URL || `ws://${BASE_HOST}:4005/ws`;
 
 const SERVICES = [
-  { name: "Identity Provider", key: "identity-provider", port: 4001, url: import.meta.env.VITE_IDENTITY_API_URL, color: "#38bdf8" },
-  { name: "Order Gateway", key: "order-gateway", port: 8080, url: import.meta.env.VITE_ORDER_API_URL, color: "#a78bfa" },
-  { name: "Stock Service", key: "stock-service", port: 4002, url: import.meta.env.VITE_STOCK_API_URL, color: "#34d399" },
-  { name: "Kitchen Service", key: "kitchen-service", port: 4003, url: import.meta.env.VITE_KITCHEN_API_URL, color: "#fb923c" },
-  { name: "Notification Hub", key: "notification-hub", port: 4005, url: import.meta.env.VITE_NOTIFICATION_API_URL, color: "#f472b6" },
+  { name: "Identity Provider", key: "identity-provider", port: 4001, color: "#38bdf8", envVar: "VITE_IDENTITY_URL" },
+  { name: "Order Gateway", key: "order-gateway", port: 8080, color: "#a78bfa", envVar: "VITE_GATEWAY_URL" },
+  { name: "Stock Service", key: "stock-service", port: 4002, color: "#34d399", envVar: "VITE_STOCK_URL" },
+  { name: "Kitchen Service", key: "kitchen-service", port: 4003, color: "#fb923c", envVar: "VITE_KITCHEN_URL" },
+  { name: "Notification Hub", key: "notification-hub", port: 4005, color: "#f472b6", envVar: "VITE_NOTIFICATION_URL" },
 ];
 
-function getServiceUrl(port: number) {
-  const svc = SERVICES.find((s) => s.port === port);
-  if (svc && svc.url) return svc.url;
-  return `http://${BASE_HOST}:${port}`;
+function getServiceUrl(port: number) { 
+  const service = SERVICES.find(s => s.port === port);
+  if (service && import.meta.env[service.envVar]) {
+    return import.meta.env[service.envVar];
+  }
+  return `${window.location.protocol}//${BASE_HOST}:${port}`; 
 }
 function formatUptime(s: number): string { if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s / 60)}m`; return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`; }
 function parsePrometheusMetrics(text: string, service: string): MetricsData {
@@ -562,6 +560,7 @@ function AdminDashboard({ user, token, onLogout }: { user: User; token: string; 
   const [killedServices, setKilledServices] = useState<Record<string, { killedAt: number; recovered: boolean }>>({});
   const [chaosTimers, setChaosTimers] = useState<Record<string, number>>({});
   const [revenue, setRevenue] = useState(0);
+  const [ordersProcessed, setOrdersProcessed] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -594,17 +593,26 @@ function AdminDashboard({ user, token, onLogout }: { user: User; token: string; 
     }));
     setServices(updated);
     const now = new Date().toLocaleTimeString();
-    const gw = updated.find((s) => s.key === "order-gateway"), id = updated.find((s) => s.key === "identity-provider"), st = updated.find((s) => s.key === "stock-service"), ki = updated.find((s) => s.key === "kitchen-service"), no = updated.find((s) => s.key === "notification-hub");
-    setLatencyHistory((p) => [...p, { time: now, gateway: gw?.metrics?.avgLatencyMs || 0, identity: id?.metrics?.avgLatencyMs || 0, stock: st?.metrics?.avgLatencyMs || 0, kitchen: ki?.metrics?.avgLatencyMs || 0, notification: no?.metrics?.avgLatencyMs || 0 }].slice(-30));
+    const gw = updated.find((s) => s.key === "order-gateway"), id = updated.find((s) => s.key === "identity-provider"), st = updated.find((s) => s.key === "stock-service"), kt = updated.find((s) => s.key === "kitchen-service"), nh = updated.find((s) => s.key === "notification-hub");
+    setLatencyHistory((p) => [...p, { time: now, gateway: gw?.metrics?.avgLatencyMs || 0, identity: id?.metrics?.avgLatencyMs || 0, stock: st?.metrics?.avgLatencyMs || 0, kitchen: kt?.metrics?.avgLatencyMs || 0, notification: nh?.metrics?.avgLatencyMs || 0 }].slice(-30));
     setOrdersHistory((p) => [...p, { time: now, orders: updated.reduce((s, x) => s + (x.metrics?.ordersProcessed || 0), 0) }].slice(-30));
     setGatewayAlert((gw?.metrics?.recentAvgLatencyMs || gw?.metrics?.avgLatencyMs || 0) > 1000);
   }, []);
 
-  const fetchRevenueSafe = useCallback(async () => {
-    try { const gw = SERVICES.find((s) => s.key === "order-gateway"); if (!gw) return; const res = await fetch(`${getServiceUrl(gw.port)}/api/orders/revenue`, { headers: { Authorization: `Bearer ${token}` } }); if (res.ok) setRevenue((await res.json()).totalRevenue || 0); } catch { }
+  const fetchStatsSafe = useCallback(async () => {
+    try { 
+      const gw = SERVICES.find((s) => s.key === "order-gateway"); 
+      if (!gw) return; 
+      const [revRes, countRes] = await Promise.all([
+        fetch(`${getServiceUrl(gw.port)}/api/orders/revenue`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${getServiceUrl(gw.port)}/api/orders/orderCount`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      if (revRes.ok) setRevenue((await revRes.json()).totalRevenue || 0); 
+      if (countRes.ok) setOrdersProcessed((await countRes.json()).count || 0);
+    } catch { }
   }, [token]);
 
-  useEffect(() => { pollServices(); fetchRevenueSafe(); const i = setInterval(() => { pollServices(); fetchRevenueSafe(); }, 5000); return () => clearInterval(i); }, [pollServices, fetchRevenueSafe]);
+  useEffect(() => { pollServices(); fetchStatsSafe(); const i = setInterval(() => { pollServices(); fetchStatsSafe(); }, 5000); return () => clearInterval(i); }, [pollServices, fetchStatsSafe]);
 
   const killService = async (svc: ServiceState) => {
     try {
@@ -617,12 +625,11 @@ function AdminDashboard({ user, token, onLogout }: { user: User; token: string; 
 
   const healthyCount = services.filter((s) => s.isUp).length;
   const totalRequests = services.reduce((s, svc) => s + (svc.metrics?.requestCount || 0), 0);
-  const totalOrders = services.reduce((s, svc) => s + (svc.metrics?.ordersProcessed || 28), 0);
   const totalErrors = services.reduce((s, svc) => s + (svc.metrics?.errorCount || 0), 0);
 
   const statCards = [
     { label: "Total Requests", value: totalRequests, icon: "📊", borderColor: "border-cyan-500/40", bgColor: "bg-cyan-500/5", glowColor: "shadow-cyan-500/10" },
-    { label: "Total Orders", value: totalOrders, icon: "📦", borderColor: "border-purple-500/40", bgColor: "bg-purple-500/5", glowColor: "shadow-purple-500/10" },
+    { label: "Total Orders", value: ordersProcessed, icon: "📦", borderColor: "border-purple-500/40", bgColor: "bg-purple-500/5", glowColor: "shadow-purple-500/10" },
     { label: "Total Errors", value: totalErrors, icon: "❌", borderColor: "border-red-500/40", bgColor: "bg-red-500/5", glowColor: "shadow-red-500/10" },
     { label: "Services Up", value: `${healthyCount}/5`, icon: "💚", borderColor: "border-green-500/40", bgColor: "bg-green-500/5", glowColor: "shadow-green-500/10" },
     { label: "Total Revenue", value: `৳${revenue}`, icon: "💰", borderColor: "border-yellow-500/40", bgColor: "bg-yellow-500/5", glowColor: "shadow-yellow-500/10" },

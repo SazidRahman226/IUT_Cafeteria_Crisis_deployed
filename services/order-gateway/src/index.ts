@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 
 const PORT = parseInt(process.env.PORT || "8080");
 const JWT_SECRET = process.env.JWT_SECRET || "devsprint-2026-secret-key";
-const REDIS_URL = process.env.REDIS_URL || "rediss://red-d6i08msr85hc739okijg:6FHUWS4CflOd3NoKPpwKannDxeinoN9L@oregon-keyvalue.render.com:6379";
+const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 const RABBITMQ_URL =
   process.env.RABBITMQ_URL || "amqp://guest:guest@localhost:5672";
 const STOCK_SERVICE_URL =
@@ -19,27 +19,16 @@ const NOTIFICATION_HUB_URL =
 const QUEUE_NAME = "kitchen_orders";
 const STOCK_CACHE_TTL = 30;
 
-const pool = new Pool(
-  process.env.DATABASE_URL
-    ? {
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false },
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-      }
-    : {
-        host: process.env.DB_HOST || "dpg-d6i0858gjchc73d0i2h0-a.oregon-postgres.render.com",
-        port: parseInt(process.env.DB_PORT || "5432"),
-        database: process.env.DB_NAME || "cafeteria_db_yi2n",
-        user: process.env.DB_USER || "cafeteria_db_yi2n_user",
-        password: process.env.DB_PASSWORD || "gkMA9JHxPY9AVG9S47NAPgGvjzs9kAZV",
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-        ssl: { rejectUnauthorized: false }
-      }
-);
+const pool = new Pool({
+  host: process.env.DB_HOST || "localhost",
+  port: parseInt(process.env.DB_PORT || "5432"),
+  database: process.env.DB_NAME || "cafeteria_orders",
+  user: process.env.DB_USER || "postgres",
+  password: process.env.DB_PASSWORD || "postgres",
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
 
 let redis: Redis;
 let rabbitChannel: amqplib.Channel | null = null;
@@ -108,29 +97,25 @@ function authenticateJwt(
 ) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer "))
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Missing token",
-          traceId: (req as any).requestId,
-        },
-      });
+    return res.status(401).json({
+      error: {
+        code: "UNAUTHORIZED",
+        message: "Missing token",
+        traceId: (req as any).requestId,
+      },
+    });
 
   try {
     (req as any).user = jwt.verify(authHeader.split(" ")[1], JWT_SECRET);
     next();
   } catch {
-    res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Invalid token",
-          traceId: (req as any).requestId,
-        },
-      });
+    res.status(401).json({
+      error: {
+        code: "UNAUTHORIZED",
+        message: "Invalid token",
+        traceId: (req as any).requestId,
+      },
+    });
   }
 }
 
@@ -140,15 +125,13 @@ function requireAdmin(
   next: express.NextFunction,
 ) {
   if ((req as any).user?.role !== "admin")
-    return res
-      .status(403)
-      .json({
-        error: {
-          code: "FORBIDDEN",
-          message: "Admin access required",
-          traceId: (req as any).requestId,
-        },
-      });
+    return res.status(403).json({
+      error: {
+        code: "FORBIDDEN",
+        message: "Admin access required",
+        traceId: (req as any).requestId,
+      },
+    });
   next();
 }
 
@@ -165,47 +148,61 @@ app.get("/api/menu", async (req, res) => {
     );
   } catch (err: any) {
     log("error", "Failed to fetch menu", { error: err.message, traceId });
-    res
-      .status(502)
-      .json({
-        error: {
-          code: "SERVICE_UNAVAILABLE",
-          message: "Unable to fetch menu",
-          traceId,
-        },
-      });
+    res.status(502).json({
+      error: {
+        code: "SERVICE_UNAVAILABLE",
+        message: "Unable to fetch menu",
+        traceId,
+      },
+    });
   }
 });
 
-app.get("/api/orders/revenue", async (req, res) => {
-  if (!req.headers.authorization)
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Missing token",
-          traceId: (req as any).requestId,
-        },
-      });
-  try {
-    const { rows } = await pool.query(
-      "SELECT COALESCE(SUM(total_amount), 0) as total_revenue FROM orders WHERE status != 'FAILED'",
-    );
-    res.json({ totalRevenue: parseFloat(rows[0].total_revenue) });
-  } catch (err: any) {
-    log("error", "Revenue fetch failed", { error: err.message });
-    res
-      .status(500)
-      .json({
+app.get(
+  "/api/orders/revenue",
+  authenticateJwt,
+  requireAdmin,
+  async (req, res) => {
+    const traceId = (req as any).requestId;
+    try {
+      const { rows } = await pool.query(
+        "SELECT COALESCE(SUM(total_amount), 0) as total_revenue FROM orders WHERE status != 'FAILED'",
+      );
+      res.json({ totalRevenue: parseFloat(rows[0].total_revenue) });
+    } catch (err: any) {
+      log("error", "Revenue fetch failed", { error: err.message });
+      res.status(500).json({
         error: {
           code: "INTERNAL_ERROR",
           message: "Calculation failed",
           traceId: (req as any)?.requestId || "",
         },
       });
-  }
-});
+    }
+  },
+);
+
+app.get(
+  "/api/orders/orderCount",
+  authenticateJwt,
+  requireAdmin,
+  async (req, res) => {
+    const traceId = (req as any).requestId;
+    try {
+      const { rows } = await pool.query("SELECT COUNT(*) as count FROM orders");
+      res.json({ count: parseInt(rows[0].count, 10) });
+    } catch (err: any) {
+      log("error", "Order count fetch failed", { error: err.message });
+      res.status(500).json({
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Calculation failed",
+          traceId: (req as any)?.requestId || "",
+        },
+      });
+    }
+  },
+);
 
 app.post("/api/orders", authenticateJwt, async (req, res) => {
   const traceId = (req as any).requestId;
@@ -214,21 +211,17 @@ app.post("/api/orders", authenticateJwt, async (req, res) => {
   const idempotencyKey = (req.headers["idempotency-key"] as string) || uuidv4();
 
   if (!items?.length)
-    return res
-      .status(400)
-      .json({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "items array is required",
-          traceId,
-        },
-      });
+    return res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "items array is required",
+        traceId,
+      },
+    });
   if (items.some((i: any) => !i.itemId || !i.quantity || i.quantity <= 0))
-    return res
-      .status(400)
-      .json({
-        error: { code: "VALIDATION_ERROR", message: "Invalid items", traceId },
-      });
+    return res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: "Invalid items", traceId },
+    });
 
   try {
     const cached = await redis.get(`idempotency:${idempotencyKey}`);
@@ -247,15 +240,13 @@ app.post("/api/orders", authenticateJwt, async (req, res) => {
       try {
         const stock = await redis.get(`stock:${item.itemId}`);
         if (stock !== null && parseInt(stock) < item.quantity) {
-          return res
-            .status(409)
-            .json({
-              error: {
-                code: "OUT_OF_STOCK",
-                message: `${item.name} out of stock (cached)`,
-                traceId,
-              },
-            });
+          return res.status(409).json({
+            error: {
+              code: "OUT_OF_STOCK",
+              message: `${item.name} out of stock (cached)`,
+              traceId,
+            },
+          });
         }
       } catch {}
     }
@@ -384,25 +375,21 @@ app.post("/api/orders", authenticateJwt, async (req, res) => {
     res.status(201).json(response);
   } catch (err: any) {
     if (err.response?.status === 409)
-      return res
-        .status(409)
-        .json({
-          error: {
-            code: "OUT_OF_STOCK",
-            message: err.response.data?.error?.message || "Out of stock",
-            traceId,
-          },
-        });
-    log("error", "Order failed", { error: err.message, traceId });
-    res
-      .status(500)
-      .json({
+      return res.status(409).json({
         error: {
-          code: "ORDER_FAILED",
-          message: "Failed to place order",
+          code: "OUT_OF_STOCK",
+          message: err.response.data?.error?.message || "Out of stock",
           traceId,
         },
       });
+    log("error", "Order failed", { error: err.message, traceId });
+    res.status(500).json({
+      error: {
+        code: "ORDER_FAILED",
+        message: "Failed to place order",
+        traceId,
+      },
+    });
   }
 });
 
@@ -415,19 +402,15 @@ app.get("/api/orders/:orderId", authenticateJwt, async (req, res) => {
       [req.params.orderId],
     );
     if (!rows.length)
-      return res
-        .status(404)
-        .json({
-          error: { code: "NOT_FOUND", message: "Order not found", traceId },
-        });
+      return res.status(404).json({
+        error: { code: "NOT_FOUND", message: "Order not found", traceId },
+      });
 
     const order = rows[0];
     if (user.role !== "admin" && order.student_id !== user.sub)
-      return res
-        .status(403)
-        .json({
-          error: { code: "FORBIDDEN", message: "Access denied", traceId },
-        });
+      return res.status(403).json({
+        error: { code: "FORBIDDEN", message: "Access denied", traceId },
+      });
 
     res.json({
       orderId: order.order_id,
@@ -440,11 +423,9 @@ app.get("/api/orders/:orderId", authenticateJwt, async (req, res) => {
     });
   } catch (err: any) {
     log("error", "Get order failed", { error: err.message, traceId });
-    res
-      .status(500)
-      .json({
-        error: { code: "INTERNAL_ERROR", message: "Fetch failed", traceId },
-      });
+    res.status(500).json({
+      error: { code: "INTERNAL_ERROR", message: "Fetch failed", traceId },
+    });
   }
 });
 
@@ -471,11 +452,9 @@ app.get("/api/orders", authenticateJwt, async (req, res) => {
     );
   } catch (err: any) {
     log("error", "List orders failed", { error: err.message, traceId });
-    res
-      .status(500)
-      .json({
-        error: { code: "INTERNAL_ERROR", message: "List failed", traceId },
-      });
+    res.status(500).json({
+      error: { code: "INTERNAL_ERROR", message: "List failed", traceId },
+    });
   }
 });
 
@@ -496,15 +475,13 @@ app.patch("/api/orders/:orderId/status", async (req, res) => {
   }
 
   if (!authorized)
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Admin access required",
-          traceId,
-        },
-      });
+    return res.status(401).json({
+      error: {
+        code: "UNAUTHORIZED",
+        message: "Admin access required",
+        traceId,
+      },
+    });
 
   const validStatuses = [
     "PENDING",
@@ -515,11 +492,9 @@ app.patch("/api/orders/:orderId/status", async (req, res) => {
     "PENDING_QUEUE",
   ];
   if (!validStatuses.includes(status))
-    return res
-      .status(400)
-      .json({
-        error: { code: "VALIDATION_ERROR", message: `Invalid status`, traceId },
-      });
+    return res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: `Invalid status`, traceId },
+    });
 
   try {
     await pool.query("UPDATE orders SET status = $1 WHERE order_id = $2", [
@@ -529,11 +504,9 @@ app.patch("/api/orders/:orderId/status", async (req, res) => {
     res.json({ orderId: req.params.orderId, status });
   } catch (err: any) {
     log("error", "Status update failed", { error: err.message, traceId });
-    res
-      .status(500)
-      .json({
-        error: { code: "INTERNAL_ERROR", message: "Update failed", traceId },
-      });
+    res.status(500).json({
+      error: { code: "INTERNAL_ERROR", message: "Update failed", traceId },
+    });
   }
 });
 
@@ -557,15 +530,13 @@ app.get("/health", async (_, res) => {
   }
 
   const allOk = Object.values(deps).every((d: any) => d.status === "ok");
-  res
-    .status(allOk ? 200 : 503)
-    .json({
-      status: allOk ? "ok" : "degraded",
-      service: "order-gateway",
-      timestamp: new Date().toISOString(),
-      uptime: Math.floor((Date.now() - startTime) / 1000),
-      dependencies: deps,
-    });
+  res.status(allOk ? 200 : 503).json({
+    status: allOk ? "ok" : "degraded",
+    service: "order-gateway",
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor((Date.now() - startTime) / 1000),
+    dependencies: deps,
+  });
 });
 
 app.get("/metrics", (_, res) =>
@@ -636,7 +607,6 @@ async function connectRedis() {
     maxRetriesPerRequest: 3,
     retryStrategy: (t) => Math.min(t * 500, 5000),
     lazyConnect: true,
-    tls: REDIS_URL.startsWith("rediss://") ? { rejectUnauthorized: false } : undefined
   });
   for (let i = 30; i > 0; i--) {
     try {
@@ -678,30 +648,6 @@ async function connectDB() {
     try {
       await pool.query("SELECT 1");
       log("info", "DB connected");
-
-      // Auto-initialize DB schema
-      try {
-        await pool.query(`
-          CREATE TABLE IF NOT EXISTS orders (
-              order_id VARCHAR(100) PRIMARY KEY,
-              student_id VARCHAR(50) NOT NULL,
-              items JSONB NOT NULL,
-              total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
-              status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
-              idempotency_key VARCHAR(100),
-              created_at TIMESTAMP DEFAULT NOW(),
-              updated_at TIMESTAMP DEFAULT NOW()
-          );
-
-          CREATE INDEX IF NOT EXISTS idx_orders_student ON orders (student_id);
-          CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
-          CREATE INDEX IF NOT EXISTS idx_orders_idempotency ON orders (idempotency_key);
-        `);
-        log("info", "Database schema initialized");
-      } catch (dbErr: any) {
-        log("error", "Database initialization failed", { error: dbErr.message });
-      }
-
       return;
     } catch {
       log("warn", `Waiting for DB... (${i - 1} left)`);
@@ -712,15 +658,15 @@ async function connectDB() {
   process.exit(1);
 }
 
-app.listen(PORT, "0.0.0.0", () => {
-  log("info", `Order Gateway running on port ${PORT}`);
-});
-
 (async () => {
   await Promise.all([connectDB(), connectRedis(), connectRabbitMQ()]);
   setInterval(retryPendingOrders, 10000);
+  app.listen(PORT, "0.0.0.0", () =>
+    log("info", `Order Gateway running on port ${PORT}`),
+  );
 })().catch((err) => {
-  log("error", "Failed to start dependencies", { error: err.message });
+  log("error", "Failed to start", { error: err.message });
+  process.exit(1);
 });
 
 export { app };

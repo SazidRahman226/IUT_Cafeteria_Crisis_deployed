@@ -69,15 +69,13 @@ app.get("/", (_, res) =>
 );
 
 app.get("/health", (_, res) =>
-  res
-    .status(rabbitConnected ? 200 : 503)
-    .json({
-      status: rabbitConnected ? "ok" : "down",
-      service: "kitchen-service",
-      timestamp: new Date().toISOString(),
-      uptime: uptime(),
-      dependencies: { rabbitmq: { status: rabbitConnected ? "ok" : "down" } },
-    }),
+  res.status(rabbitConnected ? 200 : 503).json({
+    status: rabbitConnected ? "ok" : "down",
+    service: "kitchen-service",
+    timestamp: new Date().toISOString(),
+    uptime: uptime(),
+    dependencies: { rabbitmq: { status: rabbitConnected ? "ok" : "down" } },
+  }),
 );
 
 app.get("/metrics", (_, res) =>
@@ -133,9 +131,9 @@ const notifyAndUpdate = async (
   message: string,
 ) => {
   try {
-    const results = await Promise.allSettled([
+    await Promise.allSettled([
       axios.post(
-        `${NOTIFICATION_HUB_URL.replace(/\/$/, "")}/notify`,
+        `${NOTIFICATION_HUB_URL}/notify`,
         {
           orderId,
           studentId,
@@ -143,27 +141,16 @@ const notifyAndUpdate = async (
           timestamp: new Date().toISOString(),
           message,
         },
-        { timeout: 5000 },
+        { timeout: 3000 },
       ),
       axios.patch(
-        `${GATEWAY_URL.replace(/\/$/, "")}/api/orders/${orderId}/status`,
+        `${GATEWAY_URL}/api/orders/${orderId}/status`,
         { status },
-        { timeout: 5000, headers: { "X-Internal-Key": INTERNAL_SECRET } },
+        { timeout: 3000, headers: { "X-Internal-Key": INTERNAL_SECRET } },
       ),
     ]);
-    
-    results.forEach((res, index) => {
-        if (res.status === 'rejected') {
-            log("warn", `Failed to sync status ${status} (Hook ${index})`, {
-                orderId,
-                error: res.reason?.message,
-                responseData: res.reason?.response?.data
-            });
-        }
-    });
-
   } catch (err: any) {
-    log("warn", `Unexpected error during sync status ${status}`, {
+    log("warn", `Failed to sync status ${status}`, {
       orderId,
       error: err.message,
     });
@@ -191,7 +178,8 @@ async function processOrder(
     "Your order is being prepared",
   );
 
-  const cookingTime = 3000 + Math.random() * 4000;
+  // Wait 5 seconds before moving to READY
+  const cookingTime = 5000;
   await new Promise((r) => setTimeout(r, cookingTime));
   totalCookingTimeMs += cookingTime;
 
@@ -250,14 +238,14 @@ async function connectRabbitMQ() {
   log("error", "Failed to connect to RabbitMQ");
 }
 
-app.listen(PORT, "0.0.0.0", () => {
-  log("info", `Kitchen Service running on port ${PORT}`);
-});
-
 (async () => {
   await connectRabbitMQ();
+  app.listen(PORT, "0.0.0.0", () =>
+    log("info", `Kitchen Service running on port ${PORT}`),
+  );
 })().catch((err) => {
-  log("error", "Failed to start RabbitMQ handler", { error: err.message });
+  log("error", "Failed to start", { error: err.message });
+  process.exit(1);
 });
 
 export { app };
